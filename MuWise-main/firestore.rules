@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =============================================
+    // Users Collection
+    // =============================================
+    match /users/{userId} {
+      // READ: Any authenticated user can read a user's profile.
+      // This is necessary to check an invited user's plan and usage limits.
+      allow read: if request.auth != null;
+
+      // WRITE: A user can only create or modify their own profile.
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // =============================================
+    // Agreements Collection
+    // =============================================
+    match /agreements/{agreementId} {
+      // READ: A user can read an agreement if they are the owner OR their email is in the list of signers.
+      allow read: if request.auth != null && (
+                    request.auth.uid == resource.data.userId ||
+                    request.auth.token.email in resource.data.signerEmails
+                  );
+
+      // CREATE: Any authenticated user can create an agreement.
+      // Business logic for plan limits is handled by server-side Cloud Functions or Server Actions.
+      allow create: if request.auth != null;
+
+      // UPDATE, DELETE: Only the owner of the agreement can modify or delete it.
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+  }
+}
