@@ -1,14 +1,15 @@
 // src/services/agreementServiceUnified.ts
 import { createDatabaseClient } from '@/lib/database/factory';
+import { StorageServiceUnified } from './storageServiceUnified';
 
 export class AgreementServiceUnified {
   private dbClient: any;
-  private storageClient: any;
+  private storageService: StorageServiceUnified;
 
   constructor() {
     const client = createDatabaseClient();
     this.dbClient = client.db;
-    this.storageClient = client.storage;
+    this.storageService = new StorageServiceUnified();
   }
 
   async updateSignerSignature({
@@ -73,16 +74,7 @@ export class AgreementServiceUnified {
   }
 
   private async uploadPdf(pdfBase64: string, agreementId: string): Promise<string> {
-    const filePath = `agreements-pdf/${agreementId}-${Date.now()}.pdf`;
-    const base64Data = pdfBase64.split(';base64,').pop();
-
-    if (!base64Data) {
-      throw new Error('Invalid base64 string for PDF upload.');
-    }
-
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    return this.storageClient.uploadFile(filePath, buffer, 'application/pdf');
+    return this.storageService.uploadPdf(pdfBase64, agreementId);
   }
 
   async getAgreement(agreementId: string): Promise<any> {

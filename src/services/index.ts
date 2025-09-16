@@ -17,11 +17,20 @@ class ServiceContainer {
     return this.instances.get('agreement');
   }
   
-  static getUserService(): UserService {
+  static getUserService() {
     if (!this.instances.has('user')) {
-      this.instances.set('user', new UserService());
+      const serviceFactory = ServiceFactory.getInstance();
+      this.instances.set('user', serviceFactory.getUserService());
     }
     return this.instances.get('user');
+  }
+
+  static getStorageService() {
+    if (!this.instances.has('storage')) {
+      const serviceFactory = ServiceFactory.getInstance();
+      this.instances.set('storage', serviceFactory.getStorageService());
+    }
+    return this.instances.get('storage');
   }
   
   static getEmailService(): EmailService {
