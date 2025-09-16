@@ -5,15 +5,12 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { signInWithGoogle, signInWithEmail } from '@/lib/auth';
-import { FirebaseError } from 'firebase/app';
+import { useUnifiedAuth } from '@/hooks/use-unified-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Zap, ShieldCheck, Mail, Lock, Eye, EyeOff, Info, ArrowRight, Loader2 } from 'lucide-react';
-import { auth } from '@/lib/firebase-client';
-import { onAuthStateChanged, User } from 'firebase/auth';
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 48 48" fill="none" {...props}>
@@ -33,6 +30,7 @@ const AppleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 function SignInPageComponent() {
   const { toast } = useToast();
+  const { signIn, user, loading, provider } = useUnifiedAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -55,7 +53,7 @@ function SignInPageComponent() {
     }
   }, [searchParams]);
 
-  const handleSuccessfulLogin = useCallback((user: User) => {
+  const handleSuccessfulLogin = useCallback((user: any) => {
     // Check for a pending signing token after successful login
     const pendingToken = localStorage.getItem('pendingSignToken');
     if (pendingToken) {
@@ -68,15 +66,12 @@ function SignInPageComponent() {
     }
   }, [router]);
 
+  // Redirect if user is already authenticated
   useEffect(() => {
-    // This is a listener, not a redirector. It just keeps the state in sync.
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Do not auto-redirect here, as it can interfere with the sign-in flow.
-      // handleSuccessfulLogin will be called by the sign-in methods.
-    });
-
-    return () => unsubscribe();
-  }, []);
+    if (user && !loading) {
+      handleSuccessfulLogin(user);
+    }
+  }, [user, loading, handleSuccessfulLogin]);
 
   const handleGoogleSignIn = async () => {
     if (isSubmitting || isGoogleLoading) return;
@@ -84,24 +79,15 @@ function SignInPageComponent() {
     setError('');
 
     try {
-      const result = await signInWithGoogle();
-      if (result.success && result.user) {
-        toast({
-          title: 'Signed in successfully!',
-          description: `Welcome back, ${result.user.displayName || result.user.email}!`,
-        });
-        handleSuccessfulLogin(result.user);
-      } else {
-        if (result.errorCode !== 'auth/cancelled-popup-request' && 
-            result.errorCode !== 'auth/popup-closed-by-user') {
-          setError(result.error || 'An error occurred during sign-in.');
-           toast({ variant: 'destructive', title: 'Sign-in Failed', description: result.error });
-        }
-      }
+      // TODO: Implement Google sign-in for unified auth
+      toast({ 
+        title: 'Coming Soon!', 
+        description: `Google sign-in with ${provider} will be available soon.` 
+      });
     } catch (err) {
       console.error('Unexpected error:', err);
       setError('An unexpected error occurred. Please try again.');
-       toast({ variant: 'destructive', title: 'Error', description: 'An unexpected error occurred.' });
+      toast({ variant: 'destructive', title: 'Error', description: 'An unexpected error occurred.' });
     } finally {
       setIsGoogleLoading(false);
     }
@@ -115,32 +101,30 @@ function SignInPageComponent() {
     }
     setIsSubmitting(true);
     setError('');
+    
     try {
-      const user = await signInWithEmail({ email, password });
-      if (user) {
-        toast({ title: 'Signed in successfully!', description: `Welcome back, ${user.displayName || user.email}!` });
-        handleSuccessfulLogin(user);
+      const result = await signIn(email, password);
+      if (result.success) {
+        toast({ 
+          title: 'Signed in successfully!', 
+          description: `Welcome back! Using ${provider} authentication.` 
+        });
+        // handleSuccessfulLogin will be called by the useEffect when user state updates
+      } else {
+        toast({ 
+          variant: 'destructive', 
+          title: 'Sign-in failed.', 
+          description: result.error || 'Invalid email or password. Please check your credentials.' 
+        });
+        setError(result.error || 'Invalid email or password. Please check your credentials.');
       }
     } catch (error) {
-      let description = 'An unexpected error occurred. Please try again.';
-      if (error instanceof FirebaseError) {
-        switch (error.code) {
-          case 'auth/invalid-credential':
-          case 'auth/invalid-email':
-          case 'auth/wrong-password':
-          case 'auth/user-not-found':
-            description = 'Invalid email or password. Please check your credentials.';
-            break;
-          case 'auth/too-many-requests':
-            description = 'Access temporarily disabled due to too many failed login attempts.';
-            break;
-        }
-      }
-      toast({ variant: 'destructive', title: 'Sign-in failed.', description: description });
+      console.error('Unexpected error:', error);
+      const description = 'An unexpected error occurred. Please try again.';
+      toast({ variant: 'destructive', title: 'Error', description });
       setError(description);
-      console.error(error);
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -152,6 +136,8 @@ function SignInPageComponent() {
         <div className="flex items-center justify-center gap-2 mt-3 text-xs text-gray-400">
             <ShieldCheck className="w-4 h-4 text-gray-500" />
             <span>Protected Session</span>
+            <span className="text-gray-500">•</span>
+            <span className="text-purple-400 capitalize">{provider}</span>
         </div>
       </div>
 

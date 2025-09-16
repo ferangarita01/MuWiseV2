@@ -5,17 +5,16 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { signUpWithEmail, signInWithGoogle } from '@/lib/auth';
-import { FirebaseError } from 'firebase/app';
+import { useUnifiedAuth } from '@/hooks/use-unified-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Zap, ShieldCheck, User, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, Info, Chrome } from 'lucide-react';
-import { User as FirebaseAuthUser } from 'firebase/auth';
 
 
 export default function SignUpPage() {
   const { toast } = useToast();
+  const { signUp, user, loading, provider } = useUnifiedAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,7 +36,7 @@ export default function SignUpPage() {
     }
   }, [mounted]);
 
-  const handleSuccessfulSignUp = useCallback((user: FirebaseAuthUser) => {
+  const handleSuccessfulSignUp = useCallback((user: any) => {
     const pendingToken = localStorage.getItem('pendingSignToken');
     if (pendingToken) {
       localStorage.removeItem('pendingSignToken'); // Clean up immediately
@@ -49,6 +48,13 @@ export default function SignUpPage() {
     }
   }, [router]);
 
+  // Redirect if user is already authenticated
+  useEffect(() => {
+    if (user && !loading) {
+      handleSuccessfulSignUp(user);
+    }
+  }, [user, loading, handleSuccessfulSignUp]);
+
   if (!mounted) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -58,20 +64,11 @@ export default function SignUpPage() {
   }
   const handleGoogleSignUp = async () => {
     try {
-      const result = await signInWithGoogle();
-      if (result.success && result.user) {
-        toast({
-          title: 'Account created!',
-          description: `Welcome to Muwise, ${result.user.displayName}!`,
-        });
-        handleSuccessfulSignUp(result.user);
-      } else if (result.error && result.errorCode !== 'auth/popup-closed-by-user') {
-          toast({
-            variant: 'destructive',
-            title: 'Google Sign-Up Failed',
-            description: result.error,
-          });
-      }
+      // TODO: Implement Google sign-up for unified auth
+      toast({ 
+        title: 'Coming Soon!', 
+        description: `Google sign-up with ${provider} will be available soon.` 
+      });
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -103,17 +100,16 @@ export default function SignUpPage() {
     
     setIsSubmitting(true);
     try {
-      const user = await signUpWithEmail({ email, password, fullName });
-      if (user) {
+      const result = await signUp(email, password, { name: fullName });
+      if (result.success) {
         toast({
           title: 'Account created!',
-          description: 'Welcome to Muwise! Redirecting you...',
+          description: `Welcome to Muwise! Using ${provider} authentication.`,
         });
-        handleSuccessfulSignUp(user);
-      }
-    } catch (error) {
-       if (error instanceof FirebaseError && error.code === 'auth/email-already-in-use') {
-         toast({
+        // handleSuccessfulSignUp will be called by the useEffect when user state updates
+      } else {
+        if (result.error?.includes('already') || result.error?.includes('exists')) {
+          toast({
             variant: 'destructive',
             title: 'Email Already Registered',
             description: (
@@ -125,17 +121,24 @@ export default function SignUpPage() {
                 .
               </>
             ),
-         });
-       } else {
+          });
+        } else {
           toast({
             variant: 'destructive',
             title: 'Sign up failed.',
-            description: 'An unexpected error occurred. Please try again.',
+            description: result.error || 'An unexpected error occurred. Please try again.',
           });
-       }
+        }
+      }
+    } catch (error) {
       console.error('Sign up error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Sign up failed.',
+        description: 'An unexpected error occurred. Please try again.',
+      });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -153,6 +156,8 @@ export default function SignUpPage() {
                 <ShieldCheck className="w-3 h-3 text-green-400" />
                 <span>Start your 14-day free trial</span>
             </div>
+            <span className="text-gray-500">•</span>
+            <span className="text-purple-400 capitalize text-xs">{provider}</span>
         </div>
       </div>
 
