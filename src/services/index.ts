@@ -2,15 +2,17 @@ import { AgreementService } from './agreementService';
 import { UserService } from './userService';
 import { EmailService } from './emailService';
 import { SigningService } from './signingService';
-import { UsageService } from './usageService'; // <-- AÑADIR NUEVO SERVICIO
+import { UsageService } from './usageService';
+import { ServiceFactory } from './serviceFactory';
 
 // Singleton pattern para servicios
 class ServiceContainer {
   private static instances: Map<string, any> = new Map();
   
-  static getAgreementService(): AgreementService {
+  static getAgreementService() {
     if (!this.instances.has('agreement')) {
-      this.instances.set('agreement', new AgreementService());
+      const serviceFactory = ServiceFactory.getInstance();
+      this.instances.set('agreement', serviceFactory.getAgreementService());
     }
     return this.instances.get('agreement');
   }
